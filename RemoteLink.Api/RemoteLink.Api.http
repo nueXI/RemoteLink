@@ -1,0 +1,21 @@
+@RemoteLink.Api_HostAddress = http://localhost:5120
+
+### Login
+POST {{RemoteLink.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{"password": "changeme"}
+
+###
+
+### List files
+GET {{RemoteLink.Api_HostAddress}}/api/files
+Authorization: Bearer changeme
+
+###
+
+### Download a file
+GET {{RemoteLink.Api_HostAddress}}/api/files/download/example.txt
+Authorization: Bearer changeme
+
+###
