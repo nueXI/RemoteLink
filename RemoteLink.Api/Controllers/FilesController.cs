@@ -83,7 +83,14 @@ public sealed class FilesController(IOptions<RemoteLinkOptions> options) : Contr
         if (!System.IO.File.Exists(filePath))
             return NotFound();
 
-        System.IO.File.Delete(filePath);
-        return NoContent();
+        try
+        {
+            System.IO.File.Delete(filePath);
+            return NoContent();
+        }
+        catch (IOException)
+        {
+            return Conflict("File is in use by another process.");
+        }
     }
 }
