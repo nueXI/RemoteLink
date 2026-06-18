@@ -31,6 +31,7 @@ export default function Screen() {
   const [supportsH264]  = useState(() => typeof VideoDecoder !== 'undefined');
 
   const connectionRef    = useRef<signalR.HubConnection | null>(null);
+  const panelRef         = useRef<HTMLDivElement>(null);
   const viewerRef        = useRef<HTMLDivElement>(null);
   const kbInputRef       = useRef<HTMLInputElement>(null);
   const canvasRef        = useRef<HTMLCanvasElement>(null);
@@ -266,7 +267,7 @@ export default function Screen() {
 
   async function toggleFullscreen() {
     if (!document.fullscreenElement) {
-      await viewerRef.current?.requestFullscreen();
+      await panelRef.current?.requestFullscreen();
       try {
         await screen.orientation.lock('landscape');
       } catch {
@@ -516,7 +517,7 @@ export default function Screen() {
   };
 
   return (
-    <div className="screen-panel">
+    <div className="screen-panel" ref={panelRef}>
       <div className="screen-toolbar">
         <div className="screen-status" data-status={status}>
           <span className="status-dot" />

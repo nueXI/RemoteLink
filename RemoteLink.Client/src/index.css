@@ -1333,13 +1333,9 @@ main {
   isolation: isolate;
   z-index: 1;
 }
-.screen-viewer:fullscreen,
-.screen-viewer:-webkit-full-screen {
+.screen-panel:fullscreen,
+.screen-panel:-webkit-full-screen {
   background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
 }
 
 .screen-inner {
@@ -1453,7 +1449,9 @@ main {
 .screen-view-banner[role="button"] {
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .screen-view-banner[role="button"]:hover,
 .screen-view-banner[role="button"]:active {
@@ -1508,12 +1506,23 @@ main {
     z-index: 200;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
     cursor: pointer;
-    transition: transform 0.18s var(--ease), background 0.15s;
+    transition:
+      transform 0.18s var(--ease),
+      background 0.15s;
     -webkit-tap-highlight-color: transparent;
+    margin-bottom: 3rem;
   }
-  .screen-fab:active  { transform: scale(0.9); }
-  .screen-fab.open    { background: var(--surface-2); border: 1px solid var(--border); }
-  .screen-fab svg     { width: 22px; height: 22px; }
+  .screen-fab:active {
+    transform: scale(0.9);
+  }
+  .screen-fab.open {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .screen-fab svg {
+    width: 22px;
+    height: 22px;
+  }
 
   /* ── Backdrop ───────────────────────────────────── */
   .screen-fab-backdrop {
@@ -1544,7 +1553,10 @@ main {
     opacity: 0;
     transform: translateY(10px) scale(0.97);
     pointer-events: none;
-    transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+    transition:
+      opacity 0.16s var(--ease),
+      transform 0.16s var(--ease);
+    margin-bottom: 3rem;
   }
   .screen-fab-menu.visible {
     opacity: 1;
@@ -1581,11 +1593,16 @@ main {
     font-weight: 500;
     cursor: pointer;
     text-align: left;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s,
+      color 0.12s;
     -webkit-tap-highlight-color: transparent;
   }
-  .screen-fab-btn:active  { opacity: 0.7; }
-  .screen-fab-btn.active  {
+  .screen-fab-btn:active {
+    opacity: 0.7;
+  }
+  .screen-fab-btn.active {
     background: var(--accent-dim);
     border-color: var(--accent);
     color: var(--accent);
