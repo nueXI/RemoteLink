@@ -10,12 +10,36 @@ Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(k =>
+{
+    k.Limits.MaxRequestBodySize = null;
+    k.Limits.MinRequestBodyDataRate = null;
+    k.Limits.MinResponseDataRate = null;
+});
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
+{
+    o.ValueLengthLimit             = int.MaxValue;
+    o.MultipartBodyLengthLimit     = long.MaxValue;
+    o.MultipartHeadersLengthLimit  = int.MaxValue;
+});
+
 builder.Logging.AddFileLogger(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.Configure<RemoteLinkOptions>(
     builder.Configuration.GetSection(RemoteLinkOptions.Section));
+
+// Resolve relative paths against the exe directory so they work regardless of working directory
+var baseDir = AppContext.BaseDirectory;
+builder.Services.PostConfigure<RemoteLinkOptions>(opts =>
+{
+    if (!Path.IsPathRooted(opts.UploadPath))
+        opts.UploadPath = Path.Combine(baseDir, opts.UploadPath);
+    if (!Path.IsPathRooted(opts.ChatLogPath))
+        opts.ChatLogPath = Path.Combine(baseDir, opts.ChatLogPath);
+});
 builder.Services.AddSingleton<ScreenClientTracker>();
 builder.Services.AddSingleton<H264Encoder>();
 builder.Services.AddHostedService<ScreenCaptureService>();

@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
+using RemoteLink.Api.Filters;
 using RemoteLink.Api.Options;
 
 namespace RemoteLink.Api.Controllers;
@@ -22,20 +26,36 @@ public sealed class FilesController(IOptions<RemoteLinkOptions> options) : Contr
     }
 
     [HttpPost("upload")]
-    public async Task<IActionResult> Upload()
+    [DisableRequestSizeLimit]
+    [DisableFormValueModelBinding]
+    public async Task<IActionResult> Upload(CancellationToken cancellationToken)
     {
-        if (!Request.HasFormContentType)
+        if (!MediaTypeHeaderValue.TryParse(Request.ContentType, out var contentType)
+            || !contentType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase))
             return BadRequest("Expected multipart/form-data");
 
-        var form = await Request.ReadFormAsync();
+        var boundary = HeaderUtilities.RemoveQuotes(contentType.Boundary).Value;
+        if (string.IsNullOrEmpty(boundary))
+            return BadRequest("Missing multipart boundary");
+
+        var reader = new MultipartReader(boundary, Request.Body) { BodyLengthLimit = null };
         var uploaded = new List<string>();
 
-        foreach (var file in form.Files)
+        MultipartSection? section;
+        while ((section = await reader.ReadNextSectionAsync(cancellationToken)) != null)
         {
-            var safeName = Path.GetFileName(file.FileName);
+            if (!ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var cd)
+                || !cd.DispositionType.Equals("form-data")
+                || (StringSegment.IsNullOrEmpty(cd.FileName) && StringSegment.IsNullOrEmpty(cd.FileNameStar)))
+                continue;
+
+            var rawName = cd.FileNameStar.Value ?? cd.FileName.Value ?? string.Empty;
+            var safeName = Path.GetFileName(rawName);
+            if (string.IsNullOrEmpty(safeName)) continue;
+
             var dest = Path.Combine(_uploadPath, safeName);
-            await using var stream = System.IO.File.Create(dest);
-            await file.CopyToAsync(stream);
+            await using var fileStream = System.IO.File.Create(dest);
+            await section.Body.CopyToAsync(fileStream, cancellationToken);
             uploaded.Add(safeName);
         }
 

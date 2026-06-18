@@ -238,9 +238,11 @@ export default function Screen() {
       try {
         await screen.orientation.lock('landscape');
       } catch {
-        // Firefox/iOS don't support orientation lock; rotate content via CSS instead
-        resetZoomPan();
-        setForcedLandscape(true);
+        // Orientation lock unsupported — only apply CSS rotation if actually in portrait (mobile)
+        if (window.matchMedia('(orientation: portrait)').matches) {
+          resetZoomPan();
+          setForcedLandscape(true);
+        }
       }
     } else {
       try { screen.orientation.unlock(); } catch { /* ignore */ }
