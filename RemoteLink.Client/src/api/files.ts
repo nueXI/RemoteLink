@@ -12,12 +12,34 @@ export async function listFiles(): Promise<RemoteFile[]> {
   return data;
 }
 
-export async function uploadFiles(files: FileList): Promise<void> {
+export async function uploadFiles(
+  files: FileList,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
   const form = new FormData();
-  for (const file of Array.from(files)) {
-    form.append('files', file);
-  }
-  await client.post('/api/files/upload', form);
+  for (const file of Array.from(files)) form.append('files', file);
+
+  const token = getToken();
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/files/upload');
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress)
+        onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`${xhr.status}`));
+    xhr.onerror  = () => reject(new Error('Network error'));
+    xhr.onabort  = () => reject(new Error('Aborted'));
+
+    xhr.send(form);
+  });
 }
 
 export function downloadUrl(fileName: string): string {

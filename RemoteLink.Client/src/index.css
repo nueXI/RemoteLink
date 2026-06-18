@@ -722,6 +722,10 @@ main {
   background: var(--accent-grad);
   border-radius: var(--r-full);
   animation: indeterminate 1.4s ease infinite;
+}
+.upload-progress-fill.determinate {
+  animation: none;
+  transition: width 0.2s ease;
   width: 40%;
 }
 @keyframes indeterminate {

@@ -73,6 +73,7 @@ function formatDate(iso: string): string {
 export default function Files() {
   const [files, setFiles] = useState<RemoteFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -91,14 +92,16 @@ export default function Files() {
   async function handleUpload(fileList: FileList) {
     if (!fileList.length) return;
     setUploading(true);
+    setUploadProgress(0);
     setError('');
     try {
-      await uploadFiles(fileList);
+      await uploadFiles(fileList, setUploadProgress);
       await refresh();
     } catch {
       setError('Upload failed');
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (inputRef.current) inputRef.current.value = '';
     }
   }
@@ -160,9 +163,16 @@ export default function Files() {
 
       {uploading && (
         <div className="upload-progress">
-          <span>Uploading…</span>
+          <span>
+            {uploadProgress !== null && uploadProgress > 0
+              ? `Uploading… ${uploadProgress}%`
+              : 'Uploading…'}
+          </span>
           <div className="upload-progress-bar">
-            <div className="upload-progress-fill" />
+            <div
+              className={`upload-progress-fill${uploadProgress !== null ? ' determinate' : ''}`}
+              style={uploadProgress !== null ? { width: `${uploadProgress}%` } : undefined}
+            />
           </div>
         </div>
       )}
