@@ -26,6 +26,13 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
 
 builder.Logging.AddFileLogger(builder.Configuration);
 
+// Resolve FileLogger path against exe directory (same as RemoteLinkOptions below)
+builder.Services.PostConfigure<FileLoggerOptions>(opts =>
+{
+    if (!Path.IsPathRooted(opts.FilePath))
+        opts.FilePath = Path.Combine(AppContext.BaseDirectory, opts.FilePath);
+});
+
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.Configure<RemoteLinkOptions>(
@@ -60,6 +67,17 @@ var app = builder.Build();
 var remoteLinkOptions = app.Services.GetRequiredService<IOptions<RemoteLinkOptions>>().Value;
 Directory.CreateDirectory(Path.GetFullPath(remoteLinkOptions.UploadPath));
 Directory.CreateDirectory(Path.GetFullPath(remoteLinkOptions.ChatLogPath));
+
+app.Use(async (context, next) =>
+{
+    try { await next(); }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Unhandled exception: {Method} {Path}", context.Request.Method, context.Request.Path);
+        throw;
+    }
+});
 
 app.UseCors();
 app.UseDefaultFiles();
