@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { listFiles, uploadFiles, deleteFile, downloadUrl, type RemoteFile } from '../api/files';
+import { listFiles, uploadFiles, deleteFile, downloadUrl, openUploadFolder, type RemoteFile } from '../api/files';
+
+const isPC = !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
 function fileIconClass(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
@@ -137,12 +139,19 @@ export default function Files() {
           </svg>
           Upload
         </button>
-        <button className="btn-refresh" onClick={refresh}>
+        <button className="btn-refresh" onClick={refresh} title="Refresh">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
         </button>
+        {isPC && (
+          <button className="btn-folder" onClick={openUploadFolder} title="Open upload folder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
+        )}
         <input ref={inputRef} type="file" multiple hidden onChange={(e) => e.target.files && handleUpload(e.target.files)} />
       </div>
 

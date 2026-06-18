@@ -62,6 +62,13 @@ public sealed class FilesController(IOptions<RemoteLinkOptions> options) : Contr
         return Ok(new { uploaded });
     }
 
+    [HttpGet("open-folder")]
+    public IActionResult OpenFolder()
+    {
+        System.Diagnostics.Process.Start("explorer.exe", _uploadPath);
+        return NoContent();
+    }
+
     [HttpGet("download/{fileName}")]
     public IActionResult Download(string fileName)
     {

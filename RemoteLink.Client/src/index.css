@@ -660,7 +660,8 @@ main {
   gap: 6px;
 }
 .btn-upload svg,
-.btn-refresh svg {
+.btn-refresh svg,
+.btn-folder svg {
   width: 14px;
   height: 14px;
 }
@@ -1168,6 +1169,8 @@ main {
   backdrop-filter: blur(12px);
   min-height: 40px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .screen-status {
@@ -1247,6 +1250,8 @@ main {
   border-bottom: 1px solid var(--border);
   text-align: center;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .screen-quality-btn {
@@ -1325,6 +1330,8 @@ main {
   overflow: hidden;
   background: #000;
   position: relative;
+  isolation: isolate;
+  z-index: 1;
 }
 .screen-viewer:fullscreen,
 .screen-viewer:-webkit-full-screen {
@@ -1396,6 +1403,8 @@ main {
   backdrop-filter: blur(12px);
   flex-shrink: 0;
   overflow-x: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .screen-kb-btn {
@@ -1438,4 +1447,172 @@ main {
 .screen-keyboard-input:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+/* ─── Screen — view banner tap ───────────────────── */
+.screen-view-banner[role="button"] {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.screen-view-banner[role="button"]:hover,
+.screen-view-banner[role="button"]:active {
+  background: rgba(124, 111, 247, 0.14);
+  color: var(--text);
+}
+
+/* ─── Screen FAB — hidden on desktop ─────────────── */
+.screen-fab,
+.screen-fab-backdrop,
+.screen-fab-menu {
+  display: none;
+}
+
+/* ─── Screen — mobile FAB layout ─────────────────── */
+@media (pointer: coarse) {
+  /* Replace toolbar with FAB — hide desktop controls */
+  .screen-toolbar,
+  .screen-view-banner {
+    display: none;
+  }
+
+  /* Keyboard bar keeps larger touch targets */
+  .screen-keyboard-bar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .screen-kb-btn {
+    height: 44px;
+    min-width: 44px;
+    font-size: 15px;
+  }
+  .screen-keyboard-input {
+    height: 44px;
+    font-size: 16px; /* prevents iOS auto-zoom on focus */
+  }
+
+  /* ── FAB button ─────────────────────────────────── */
+  .screen-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    z-index: 200;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    transition: transform 0.18s var(--ease), background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .screen-fab:active  { transform: scale(0.9); }
+  .screen-fab.open    { background: var(--surface-2); border: 1px solid var(--border); }
+  .screen-fab svg     { width: 22px; height: 22px; }
+
+  /* ── Backdrop ───────────────────────────────────── */
+  .screen-fab-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 197;
+  }
+
+  /* ── FAB menu panel ─────────────────────────────── */
+  .screen-fab-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: fixed;
+    bottom: 92px;
+    right: 16px;
+    width: 240px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 12px;
+    z-index: 198;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+    max-height: calc(100dvh - 120px);
+    overflow-y: auto;
+    /* hidden state */
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+    pointer-events: none;
+    transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+  }
+  .screen-fab-menu.visible {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  /* ── Menu status row ────────────────────────────── */
+  .screen-fab-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 4px 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+  .screen-fab-status .screen-status {
+    font-size: 13px;
+  }
+
+  /* ── Menu action buttons ────────────────────────── */
+  .screen-fab-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .screen-fab-btn:active  { opacity: 0.7; }
+  .screen-fab-btn.active  {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .screen-fab-btn:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .screen-fab-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  /* ── Monitor select inside menu ─────────────────── */
+  .screen-fab-select {
+    width: 100%;
+    max-width: 100%;
+    height: 44px;
+    font-size: 14px;
+    padding: 0 28px 0 10px;
+  }
+
+  /* ── Divider ────────────────────────────────────── */
+  .screen-fab-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
+  }
 }

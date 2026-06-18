@@ -50,3 +50,7 @@ export function downloadUrl(fileName: string): string {
 export async function deleteFile(fileName: string): Promise<void> {
   await client.delete(`/api/files/${encodeURIComponent(fileName)}`);
 }
+
+export async function openUploadFolder(): Promise<void> {
+  await client.get('/api/files/open-folder');
+}

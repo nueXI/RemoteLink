@@ -50,6 +50,8 @@ builder.Services.PostConfigure<RemoteLinkOptions>(opts =>
 builder.Services.AddSingleton<ScreenClientTracker>();
 builder.Services.AddSingleton<H264Encoder>();
 builder.Services.AddHostedService<ScreenCaptureService>();
+builder.Services.AddSingleton<AudioCaptureService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AudioCaptureService>());
 builder.Services.AddSingleton<RemoteInputService>();
 builder.Services.AddSingleton<ChatLogService>();
 builder.Services.AddCors(options =>

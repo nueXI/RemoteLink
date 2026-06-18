@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace RemoteLink.Api.Services;
 
 public sealed class ScreenClientTracker
@@ -7,9 +9,13 @@ public sealed class ScreenClientTracker
     private int _streamMode;    // StreamMode enum cast to int
     private int _forceKeyframe; // 0 or 1
 
+    private int _audioCount;
+    private readonly ConcurrentDictionary<string, byte> _audioConnections = new();
+
     public int        ConnectionCount => _count;
     public int        ScreenIndex     => _screenIndex;
     public StreamMode StreamMode      => (StreamMode)Volatile.Read(ref _streamMode);
+    public int        AudioClientCount => Volatile.Read(ref _audioCount);
 
     public void Increment()  => Interlocked.Increment(ref _count);
     public void Decrement()  => Interlocked.Decrement(ref _count);
@@ -23,4 +29,18 @@ public sealed class ScreenClientTracker
 
     public bool ConsumeForceKeyframe() =>
         Interlocked.Exchange(ref _forceKeyframe, 0) == 1;
+
+    public bool EnableAudio(string connectionId)
+    {
+        if (!_audioConnections.TryAdd(connectionId, 0)) return false;
+        Interlocked.Increment(ref _audioCount);
+        return true;
+    }
+
+    public bool DisableAudio(string connectionId)
+    {
+        if (!_audioConnections.TryRemove(connectionId, out _)) return false;
+        Interlocked.Decrement(ref _audioCount);
+        return true;
+    }
 }

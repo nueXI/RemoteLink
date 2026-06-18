@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace RemoteLink.Api.Hubs;
 
-public sealed class ScreenHub(ScreenClientTracker tracker, RemoteInputService input) : Hub
+public sealed class ScreenHub(ScreenClientTracker tracker, RemoteInputService input, AudioCaptureService audio) : Hub
 {
     public override Task OnConnectedAsync()
     {
@@ -12,10 +12,33 @@ public sealed class ScreenHub(ScreenClientTracker tracker, RemoteInputService in
         return base.OnConnectedAsync();
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
         tracker.Decrement();
-        return base.OnDisconnectedAsync(exception);
+        if (tracker.DisableAudio(Context.ConnectionId))
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "audio");
+            audio.OnClientDisabled();
+        }
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    public async Task EnableAudio()
+    {
+        if (tracker.EnableAudio(Context.ConnectionId))
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, "audio");
+            audio.OnClientEnabled();
+        }
+    }
+
+    public async Task DisableAudio()
+    {
+        if (tracker.DisableAudio(Context.ConnectionId))
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, "audio");
+            audio.OnClientDisabled();
+        }
     }
 
     public void SelectScreen(int index)

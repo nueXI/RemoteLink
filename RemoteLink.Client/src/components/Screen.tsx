@@ -24,6 +24,8 @@ export default function Screen() {
   const [h264Available, setH264Available] = useState(false);
   const [h264HasFrame, setH264HasFrame] = useState(false);
   const [decoderVersion, setDecoderVersion] = useState(0);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // stable computed once — no setter needed
   const [supportsH264]  = useState(() => typeof VideoDecoder !== 'undefined');
@@ -35,6 +37,8 @@ export default function Screen() {
   const decoderRef       = useRef<VideoDecoder | null>(null);
   const frameCountRef    = useRef(0);
   const lastFpsRef       = useRef(Date.now());
+  const audioCtxRef      = useRef<AudioContext | null>(null);
+  const nextPlayTimeRef  = useRef(0);
 
   // Refs that mirror state for stale-closure-safe use inside setTimeout / SignalR handlers
   const controlModeRef   = useRef<'view' | 'control'>('view');
@@ -70,6 +74,34 @@ export default function Screen() {
     const connection = createScreenConnection();
     connectionRef.current = connection;
     let h264Ts = 0;
+
+    connection.on('ReceiveAudio', (base64: string, sampleRate: number, channels: number) => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state === 'closed') return;
+
+      const binary = atob(base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const int16  = new Int16Array(bytes.buffer);
+
+      const frameCount  = int16.length / channels;
+      const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
+      for (let ch = 0; ch < channels; ch++) {
+        const channelData = audioBuffer.getChannelData(ch);
+        for (let i = 0; i < frameCount; i++)
+          channelData[i] = int16[i * channels + ch] / 32768;
+      }
+
+      const now = ctx.currentTime;
+      // Reset schedule if we've fallen behind (stall / reconnect)
+      if (nextPlayTimeRef.current < now) nextPlayTimeRef.current = now + 0.08;
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.start(nextPlayTimeRef.current);
+      nextPlayTimeRef.current += audioBuffer.duration;
+    });
 
     connection.on('ReceiveFrame', (data: string) => {
       setFrame(data);
@@ -249,6 +281,26 @@ export default function Screen() {
       setForcedLandscape(false);
       resetZoomPan();
       document.exitFullscreen();
+    }
+  }
+
+  // ── Audio ─────────────────────────────────────────────────────────────────
+
+  async function toggleAudio() {
+    if (audioEnabled) {
+      connectionRef.current?.invoke('DisableAudio').catch(() => {});
+      audioCtxRef.current?.close();
+      audioCtxRef.current   = null;
+      nextPlayTimeRef.current = 0;
+      setAudioEnabled(false);
+    } else {
+      // AudioContext must be created inside a user gesture — satisfies iOS Safari autoplay policy
+      const ctx = new AudioContext();
+      await ctx.resume(); // iOS Safari may start context suspended
+      audioCtxRef.current   = ctx;
+      nextPlayTimeRef.current = 0;
+      connectionRef.current?.invoke('EnableAudio').catch(() => {});
+      setAudioEnabled(true);
     }
   }
 
@@ -544,6 +596,26 @@ export default function Screen() {
           </button>
 
           <button
+            className={`screen-btn${audioEnabled ? ' active' : ''}`}
+            onClick={toggleAudio}
+            title={audioEnabled ? 'Mute PC audio' : 'Stream PC audio'}
+          >
+            {audioEnabled ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <line x1="23" y1="9" x2="17" y2="15"/>
+                <line x1="17" y1="9" x2="23" y2="15"/>
+              </svg>
+            )}
+          </button>
+
+          <button
             className="screen-btn"
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
@@ -568,7 +640,9 @@ export default function Screen() {
       </div>
 
       {!isControl && (
-        <div className="screen-view-banner">View only — tap the eye icon to take control</div>
+        <div className="screen-view-banner" role="button" onClick={() => setControlMode('control')}>
+          View only — tap to take control
+        </div>
       )}
 
       <div
@@ -630,6 +704,141 @@ export default function Screen() {
           )}
         </div>
       </div>
+
+      {/* ── Mobile FAB + menu (hidden on desktop via CSS) ── */}
+      {showMobileMenu && (
+        <div className="screen-fab-backdrop" onClick={() => setShowMobileMenu(false)} />
+      )}
+
+      <div className={`screen-fab-menu${showMobileMenu ? ' visible' : ''}`}>
+        <div className="screen-fab-status">
+          <span className="screen-status" data-status={status}>
+            <span className="status-dot" />{statusLabel}
+          </span>
+          {hasAnyFrame && <span className="screen-fps">{fps} fps</span>}
+        </div>
+
+        <button
+          className={`screen-fab-btn${isControl ? ' active' : ''}`}
+          onClick={() => setControlMode(m => m === 'view' ? 'control' : 'view')}
+        >
+          {isControl ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 9l4 4 10-10"/><rect x="2" y="2" width="20" height="20" rx="2"/>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          )}
+          {isControl ? 'Control mode' : 'View only'}
+        </button>
+
+        <button
+          className={`screen-fab-btn${audioEnabled ? ' active' : ''}`}
+          onClick={toggleAudio}
+        >
+          {audioEnabled ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+          )}
+          {audioEnabled ? 'Audio on' : 'Audio off'}
+        </button>
+
+        <button
+          className={`screen-fab-btn${isH264Mode ? ' active' : ''}`}
+          onClick={toggleStreamMode}
+          disabled={qualityDisabled}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+          </svg>
+          {qualityDisabled
+            ? (!supportsH264 ? 'H.264 (no WebCodecs)' : 'H.264 (unavailable)')
+            : (isH264Mode ? 'H.264 on' : 'H.264 off')}
+        </button>
+
+        <button
+          className={`screen-fab-btn${showKeyboard ? ' active' : ''}`}
+          onClick={() => { setShowKeyboard(v => !v); setTimeout(() => kbInputRef.current?.focus(), 50); }}
+          disabled={!isControl}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2"/>
+            <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
+          </svg>
+          {showKeyboard ? 'Keyboard on' : 'Keyboard'}
+        </button>
+
+        {monitors.length > 1 && (
+          <select
+            className="screen-monitor-select screen-fab-select"
+            value={activeScreen}
+            onChange={(e) => selectScreen(Number(e.target.value))}
+          >
+            {monitors.map((m) => (
+              <option key={m.index} value={m.index}>
+                {m.name}{m.primary ? ' ●' : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <div className="screen-fab-divider" />
+
+        {zoom > 1 && (
+          <button className="screen-fab-btn" onClick={() => { resetZoomPan(); setShowMobileMenu(false); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            Reset zoom
+          </button>
+        )}
+
+        <button className="screen-fab-btn" onClick={() => { toggleFullscreen(); setShowMobileMenu(false); }}>
+          {isFullscreen ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="8 3 3 3 3 8"/><polyline points="21 8 21 3 16 3"/>
+              <polyline points="3 16 3 21 8 21"/><polyline points="16 21 21 21 21 16"/>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          )}
+          {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        </button>
+      </div>
+
+      <button
+        className={`screen-fab${showMobileMenu ? ' open' : ''}`}
+        onClick={() => setShowMobileMenu(v => !v)}
+        title="Controls"
+      >
+        {showMobileMenu ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/>
+            <line x1="9" y1="8" x2="15" y2="8"/>
+            <line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+        )}
+      </button>
 
       {showKeyboard && isControl && (
         <div className="screen-keyboard-bar">
