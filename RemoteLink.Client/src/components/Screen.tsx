@@ -26,6 +26,10 @@ export default function Screen() {
   const [decoderVersion, setDecoderVersion] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [tapBehavior, setTapBehavior]       = useState<'left' | 'double-left' | 'right'>(() =>
+    (localStorage.getItem('tapBehavior') as 'left' | 'double-left' | 'right') || 'left'
+  );
+  const [panEnabled, setPanEnabled]         = useState(() => localStorage.getItem('panEnabled') !== 'false');
 
   // stable computed once — no setter needed
   const [supportsH264]  = useState(() => typeof VideoDecoder !== 'undefined');
@@ -49,16 +53,22 @@ export default function Screen() {
   const streamModeRef    = useRef<'jpeg' | 'h264'>('jpeg');
 
   // Touch state
-  const touchRef    = useRef<{ x: number; y: number; time: number; moved: boolean } | null>(null);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastMoveRef  = useRef(0);
-  const pinchRef    = useRef<{ dist: number; midX: number; midY: number } | null>(null);
+  const touchRef        = useRef<{ x: number; y: number; time: number; moved: boolean } | null>(null);
+  const longPressRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragStartRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragReadyRef    = useRef(false);
+  const isDraggingRef   = useRef(false);
+  const lastMoveRef     = useRef(0);
+  const pinchRef          = useRef<{ dist: number; midX: number; midY: number; mode: 'undecided' | 'zoom' | 'scroll' } | null>(null);
+  const hasTouchRef       = useRef(false);
 
   useEffect(() => { controlModeRef.current = controlMode; },  [controlMode]);
   useEffect(() => { activeScreenRef.current = activeScreen; }, [activeScreen]);
   useEffect(() => { zoomRef.current = zoom; },               [zoom]);
   useEffect(() => { panRef.current = pan; },                 [pan]);
   useEffect(() => { streamModeRef.current = streamMode; },   [streamMode]);
+  useEffect(() => { localStorage.setItem('tapBehavior', tapBehavior); }, [tapBehavior]);
+  useEffect(() => { localStorage.setItem('panEnabled', String(panEnabled)); }, [panEnabled]);
 
   useEffect(() => {
     getMonitors().then(({ monitors: mons, currentIndex, h264Available: avail }: MonitorsResult) => {
@@ -342,6 +352,18 @@ export default function Screen() {
     setTimeout(() => conn?.invoke('MouseButton', button, false), 50);
   }
 
+  function sendDoubleClick(clientX: number, clientY: number) {
+    if (controlModeRef.current !== 'control') return;
+    const ratios = getRatios(clientX, clientY);
+    if (!ratios) return;
+    const conn = connectionRef.current;
+    conn?.invoke('MouseMove', ratios.ratioX, ratios.ratioY);
+    conn?.invoke('MouseButton', 0, true);
+    setTimeout(() => conn?.invoke('MouseButton', 0, false), 50);
+    setTimeout(() => conn?.invoke('MouseButton', 0, true),  100);
+    setTimeout(() => conn?.invoke('MouseButton', 0, false), 150);
+  }
+
   // ── Touch helpers ─────────────────────────────────────────────────────────
 
   function getDist(t1: React.Touch, t2: React.Touch) {
@@ -352,15 +374,27 @@ export default function Screen() {
 
   // ── Touch handlers ────────────────────────────────────────────────────────
 
+  function cancelDragTimers() {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    if (dragStartRef.current) { clearTimeout(dragStartRef.current); dragStartRef.current = null; }
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
+    hasTouchRef.current = true;
     if (e.touches.length === 2) {
-      if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+      cancelDragTimers();
+      if (isDraggingRef.current) {
+        connectionRef.current?.invoke('MouseButton', 0, false);
+        isDraggingRef.current = false;
+      }
+      dragReadyRef.current = false;
       touchRef.current = null;
       const [t1, t2] = [e.touches[0], e.touches[1]];
       pinchRef.current = {
         dist: getDist(t1, t2),
         midX: (t1.clientX + t2.clientX) / 2,
         midY: (t1.clientY + t2.clientY) / 2,
+        mode: 'undecided',
       };
       return;
     }
@@ -368,13 +402,13 @@ export default function Screen() {
 
     const t = e.touches[0];
     touchRef.current = { x: t.clientX, y: t.clientY, time: Date.now(), moved: false };
+    dragReadyRef.current = false;
 
-    longPressRef.current = setTimeout(() => {
+    dragStartRef.current = setTimeout(() => {
       if (touchRef.current && !touchRef.current.moved) {
-        sendClick(touchRef.current.x, touchRef.current.y, 1);
-        touchRef.current = null;
+        dragReadyRef.current = true;
       }
-    }, 600);
+    }, 300);
   }
 
   function handleTouchMove(e: React.TouchEvent) {
@@ -386,16 +420,44 @@ export default function Screen() {
       const newMidX = (t1.clientX + t2.clientX) / 2;
       const newMidY = (t1.clientY + t2.clientY) / 2;
 
-      if (pinchRef.current && !forcedLandscape) {
-        const newZoom = Math.max(1, Math.min(5, zoomRef.current * (newDist / pinchRef.current.dist)));
-        const dx = newMidX - pinchRef.current.midX;
-        const dy = newMidY - pinchRef.current.midY;
-        const newPan = clampedPan(panRef.current.x + dx, panRef.current.y + dy, newZoom);
-        zoomRef.current = newZoom;
-        panRef.current  = newPan;
-        setZoom(newZoom);
-        setPan(newPan);
-        pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY };
+      if (pinchRef.current) {
+        const p = pinchRef.current;
+
+        if (p.mode === 'undecided') {
+          const distChange = Math.abs(newDist - p.dist) / p.dist;
+          const midYDelta  = Math.abs(newMidY - p.midY);
+          if (distChange > 0.06) {
+            pinchRef.current = { ...p, mode: 'zoom' };
+          } else if (midYDelta > 8) {
+            pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY, mode: 'scroll' };
+            return;
+          } else {
+            pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY, mode: 'undecided' };
+            return;
+          }
+        }
+
+        if (pinchRef.current.mode === 'scroll') {
+          const dy = newMidY - pinchRef.current.midY;
+          const scrollDelta = Math.round(-dy * 3);
+          if (scrollDelta !== 0 && controlModeRef.current === 'control') {
+            connectionRef.current?.invoke('MouseScroll', scrollDelta);
+          }
+          pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY, mode: 'scroll' };
+          return;
+        }
+
+        if (!forcedLandscape) {
+          const newZoom = Math.max(1, Math.min(5, zoomRef.current * (newDist / pinchRef.current.dist)));
+          const dx = newMidX - pinchRef.current.midX;
+          const dy = newMidY - pinchRef.current.midY;
+          const newPan = clampedPan(panRef.current.x + dx, panRef.current.y + dy, newZoom);
+          zoomRef.current = newZoom;
+          panRef.current  = newPan;
+          setZoom(newZoom);
+          setPan(newPan);
+          pinchRef.current = { dist: newDist, midX: newMidX, midY: newMidY, mode: 'zoom' };
+        }
       }
       return;
     }
@@ -407,10 +469,25 @@ export default function Screen() {
 
     if (!touchRef.current.moved && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
       touchRef.current.moved = true;
-      if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+      if (!dragReadyRef.current) cancelDragTimers();
     }
 
-    if (zoomRef.current > 1 && !forcedLandscape) {
+    if (dragReadyRef.current && !isDraggingRef.current) {
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 20) {
+        dragReadyRef.current = false;
+        if (controlModeRef.current === 'control') {
+          const ratios = getRatios(t.clientX, t.clientY);
+          if (ratios) {
+            connectionRef.current?.invoke('MouseMove', ratios.ratioX, ratios.ratioY);
+            connectionRef.current?.invoke('MouseButton', 0, true);
+            isDraggingRef.current = true;
+          }
+        }
+      }
+    }
+
+    if (zoomRef.current > 1 && !forcedLandscape && !isDraggingRef.current && panEnabled) {
       const newPan = clampedPan(panRef.current.x + dx, panRef.current.y + dy, zoomRef.current);
       panRef.current = newPan;
       touchRef.current = { ...touchRef.current, x: t.clientX, y: t.clientY };
@@ -426,15 +503,34 @@ export default function Screen() {
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    cancelDragTimers();
+    dragReadyRef.current = false;
     if (e.touches.length < 2) pinchRef.current = null;
+
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      connectionRef.current?.invoke('MouseButton', 0, false);
+      touchRef.current = null;
+      void e;
+      return;
+    }
 
     const state = touchRef.current;
     touchRef.current = null;
     if (!state) return;
     const elapsed = Date.now() - state.time;
-    if (!state.moved && elapsed < 350 && zoomRef.current === 1) {
-      sendClick(state.x, state.y, 0);
+    const endTouch = e.changedTouches[0];
+    const endDx = endTouch ? endTouch.clientX - state.x : 0;
+    const endDy = endTouch ? endTouch.clientY - state.y : 0;
+    const endDist = Math.sqrt(endDx * endDx + endDy * endDy);
+    if (endDist < 15 && elapsed < 600) {
+      if (tapBehavior === 'right') {
+        sendClick(state.x, state.y, 1);
+      } else if (tapBehavior === 'double-left') {
+        sendDoubleClick(state.x, state.y);
+      } else {
+        sendClick(state.x, state.y, 0);
+      }
     }
     void e;
   }
@@ -442,11 +538,13 @@ export default function Screen() {
   // ── Desktop mouse ─────────────────────────────────────────────────────────
 
   function handleMouseMove(e: React.MouseEvent) {
+    if (hasTouchRef.current) return;
     if (controlModeRef.current !== 'control') return;
     sendMouseMove(e.clientX, e.clientY);
   }
 
   function handleMouseDown(e: React.MouseEvent) {
+    if (hasTouchRef.current) return;
     if (controlModeRef.current !== 'control') return;
     const button = e.button === 2 ? 1 : e.button === 1 ? 2 : 0;
     const ratios = getRatios(e.clientX, e.clientY);
@@ -454,6 +552,7 @@ export default function Screen() {
   }
 
   function handleMouseUp(e: React.MouseEvent) {
+    if (hasTouchRef.current) return;
     if (controlModeRef.current !== 'control') return;
     const button = e.button === 2 ? 1 : e.button === 1 ? 2 : 0;
     const ratios = getRatios(e.clientX, e.clientY);
@@ -776,6 +875,31 @@ export default function Screen() {
             <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
           </svg>
           {showKeyboard ? 'Keyboard on' : 'Keyboard'}
+        </button>
+
+        <button
+          className="screen-fab-btn"
+          onClick={() => setTapBehavior(b => b === 'left' ? 'right' : b === 'right' ? 'double-left' : 'left')}
+          disabled={!isControl}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+            <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0V16"/><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/>
+          </svg>
+          {tapBehavior === 'left' ? 'Tap: Left click' : tapBehavior === 'double-left' ? 'Tap: Double click' : 'Tap: Right click'}
+        </button>
+
+        <button
+          className={`screen-fab-btn${panEnabled ? ' active' : ''}`}
+          onClick={() => setPanEnabled(v => !v)}
+          disabled={!isControl}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
+            <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+            <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+          </svg>
+          {panEnabled ? 'Pan: On' : 'Pan: Off'}
         </button>
 
         {monitors.length > 1 && (

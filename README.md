@@ -6,9 +6,24 @@ A local-network web tool for PC↔phone file transfer, real-time messaging, and 
 
 - **File transfer** — upload from phone to PC, download from PC to phone
 - **Real-time chat** — bidirectional messaging via SignalR with persistent daily chat logs
-- **Screen viewing** — live H.264 stream of the PC desktop, viewable from phone browser
+- **Screen viewing & control** — live H.264 stream of the PC desktop with full touch-based mouse control from phone browser
 - **Simple auth** — single password configured in `appsettings.json`
 - **Auto-start** — runs via Windows Task Scheduler on login
+
+## Touch Controls (Mobile)
+
+The screen viewer shows a floating action button (FAB, bottom-right) with per-session settings. Controls are only active in **Control mode** (toggled via the FAB).
+
+| Gesture | Action |
+|---|---|
+| 1-finger tap | Configurable: **left click** / **right click** / **double click** (cycle via FAB) |
+| 1-finger hold (300 ms) + drag | Hold left button and drag — for file drag-and-drop |
+| 1-finger drag (zoomed in) | Pan the zoomed view (toggle via FAB) |
+| 2-finger pinch | Zoom the local view in/out |
+| 2-finger swipe (up/down) | Scroll (mouse wheel) |
+| Mouse move / click | Full mouse control when using a desktop browser |
+
+Settings (tap behavior, pan on/off) are saved in `localStorage` and persist across sessions.
 
 ## Tech Stack
 
