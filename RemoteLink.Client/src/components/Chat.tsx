@@ -24,6 +24,9 @@ export default function Chat({ senderName }: ChatProps) {
   const [showLogs, setShowLogs] = useState(false);
   const [logDates, setLogDates] = useState<string[]>([]);
   const [deletingDate, setDeletingDate] = useState<string | null>(null);
+  const [viewingDate, setViewingDate] = useState<string | null>(null);
+  const [viewingMessages, setViewingMessages] = useState<ChatMessage[]>([]);
+  const [loadingDate, setLoadingDate] = useState<string | null>(null);
 
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -78,7 +81,13 @@ export default function Chat({ senderName }: ChatProps) {
   async function openLogs() {
     const dates = await getChatLogDates();
     setLogDates(dates);
+    setViewingDate(null);
     setShowLogs(true);
+  }
+
+  function closeLogs() {
+    setShowLogs(false);
+    setViewingDate(null);
   }
 
   async function handleDelete(date: string) {
@@ -86,8 +95,41 @@ export default function Chat({ senderName }: ChatProps) {
     try {
       await deleteChatLog(date);
       setLogDates((prev) => prev.filter((d) => d !== date));
+      if (viewingDate === date) setViewingDate(null);
     } finally {
       setDeletingDate(null);
+    }
+  }
+
+  async function handleOpen(date: string) {
+    setLoadingDate(date);
+    try {
+      const entries = await getChatLog(date);
+      setViewingMessages(entries);
+      setViewingDate(date);
+    } finally {
+      setLoadingDate(null);
+    }
+  }
+
+  async function handleDownload(date: string) {
+    setLoadingDate(date);
+    try {
+      const entries = await getChatLog(date);
+      const header = `Chat Log – ${formatLogDate(date)}\n${'─'.repeat(48)}\n`;
+      const body = entries.map((e) => {
+        const time = new Date(e.timestamp).toLocaleTimeString();
+        return `[${time}] ${e.sender}: ${e.message}`;
+      }).join('\n');
+      const blob = new Blob([header + body], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-${date}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setLoadingDate(null);
     }
   }
 
@@ -98,7 +140,7 @@ export default function Chat({ senderName }: ChatProps) {
       <div className="chat-statusbar" data-status={status}>
         <span className="status-dot" />
         {statusLabel}
-        <button className="chat-logs-btn" onClick={showLogs ? () => setShowLogs(false) : openLogs}>
+        <button className="chat-logs-btn" onClick={showLogs ? closeLogs : openLogs}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
@@ -111,6 +153,37 @@ export default function Chat({ senderName }: ChatProps) {
       </div>
 
       {showLogs ? (
+        viewingDate ? (
+          <div className="chat-log-viewer">
+            <div className="chat-log-viewer-header">
+              <button className="chat-log-viewer-back" onClick={() => setViewingDate(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Back
+              </button>
+              <span className="chat-log-viewer-title">{formatLogDate(viewingDate)}</span>
+            </div>
+            <div className="chat-messages">
+              {viewingMessages.length === 0 && (
+                <div className="chat-empty"><p>No messages</p></div>
+              )}
+              {viewingMessages.map((msg, i) => {
+                const isOwn = msg.sender === senderName;
+                return (
+                  <div key={i} className={`chat-message-row ${isOwn ? 'own' : ''}`}>
+                    <div className="chat-avatar">{initials(msg.sender)}</div>
+                    <div className="chat-bubble-wrap">
+                      {!isOwn && <span className="chat-sender">{msg.sender}</span>}
+                      <span className="chat-bubble">{msg.message}</span>
+                      <span className="chat-time">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
         <div className="chat-logs-panel">
           {logDates.length === 0 ? (
             <div className="chat-empty">
@@ -124,6 +197,29 @@ export default function Chat({ senderName }: ChatProps) {
             logDates.map((date) => (
               <div className="chat-log-item" key={date}>
                 <span className="chat-log-date">{formatLogDate(date)}</span>
+                <button
+                  className="btn-open-log"
+                  disabled={loadingDate === date}
+                  onClick={() => handleOpen(date)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  {loadingDate === date ? '…' : 'Open'}
+                </button>
+                <button
+                  className="btn-download-log"
+                  disabled={loadingDate === date}
+                  onClick={() => handleDownload(date)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  {loadingDate === date ? '…' : 'Save'}
+                </button>
                 <button
                   className="btn-delete-log"
                   disabled={deletingDate === date}
@@ -141,6 +237,7 @@ export default function Chat({ senderName }: ChatProps) {
             ))
           )}
         </div>
+        )
       ) : (
         <div className="chat-messages">
           {messages.length === 0 && (

@@ -1149,6 +1149,95 @@ main {
   height: 13px;
 }
 
+.btn-open-log {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.btn-open-log:hover:not(:disabled) {
+  background: var(--accent-dim);
+  border-color: rgba(139, 92, 246, 0.3);
+  color: var(--accent);
+}
+.btn-open-log svg {
+  width: 13px;
+  height: 13px;
+}
+
+.btn-download-log {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.btn-download-log:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.08);
+  border-color: rgba(34, 211, 238, 0.3);
+  color: #22d3ee;
+}
+.btn-download-log svg {
+  width: 13px;
+  height: 13px;
+}
+
+.chat-log-viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.chat-log-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-log-viewer-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.chat-log-viewer-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.chat-log-viewer-back svg {
+  width: 13px;
+  height: 13px;
+}
+
+.chat-log-viewer-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-heading);
+}
+
 /* ─── Screen ──────────────────────────────────────── */
 .screen-panel {
   flex: 1;
