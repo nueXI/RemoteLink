@@ -3,6 +3,9 @@ import { listFiles, uploadFiles, deleteFile, downloadUrl, openUploadFolder, type
 
 const isPC = !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
+type ViewMode = 'list' | 'grid';
+const VIEW_STORAGE_KEY = 'files-view-mode';
+
 function fileIconClass(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if (['jpg','jpeg','png','gif','webp','svg','bmp','ico'].includes(ext)) return 'file-icon-img';
@@ -78,7 +81,14 @@ export default function Files() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (localStorage.getItem(VIEW_STORAGE_KEY) as ViewMode) || 'list',
+  );
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   async function refresh() {
     try {
@@ -189,10 +199,34 @@ export default function Files() {
       {error && <p className="error">{error}</p>}
 
       {files.length > 0 && (
-        <span className="files-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+        <div className="files-list-header">
+          <span className="files-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          <div className="view-toggle" role="group" aria-label="View mode">
+            <button
+              className={viewMode === 'list' ? 'active' : ''}
+              onClick={() => setViewMode('list')}
+              title="List view"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+            </button>
+            <button
+              className={viewMode === 'grid' ? 'active' : ''}
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
 
-      <div className="files-list">
+      <div className={`files-list view-${viewMode}`}>
         {files.length === 0 && !uploading && (
           <div className="files-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

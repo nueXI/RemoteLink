@@ -763,10 +763,100 @@ main {
   flex-direction: column;
   gap: 6px;
 }
+
+.files-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .files-count {
   font-size: 12px;
   color: var(--text-muted);
   padding: 0 2px;
+}
+
+.view-toggle {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: var(--text-muted);
+}
+.view-toggle button:hover:not(.active) {
+  background: var(--glass);
+  color: var(--text);
+  border: none;
+}
+.view-toggle button.active {
+  background: var(--accent-grad);
+  color: #fff;
+  border: none;
+}
+.view-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Grid / big tile view */
+.files-list.view-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.files-list.view-grid .file-item {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  height: 100%;
+  gap: 10px;
+  padding: 20px 14px;
+}
+.files-list.view-grid .file-icon {
+  width: 52px;
+  height: 52px;
+}
+.files-list.view-grid .file-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.files-list.view-grid .file-info {
+  align-items: center;
+  width: 100%;
+}
+.files-list.view-grid .file-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-align: center;
+}
+.files-list.view-grid .file-actions {
+  width: 100%;
+  justify-content: center;
+}
+.files-list.view-grid .file-actions a span,
+.files-list.view-grid .file-actions button span {
+  display: none;
+}
+.files-list.view-grid .file-actions a,
+.files-list.view-grid .file-actions button {
+  padding: 6px 8px;
 }
 
 .file-item {
@@ -956,32 +1046,32 @@ main {
     padding: 48px 44px;
   }
 
-  /* Chat: constrain and center content */
+  /* Chat: fill the available width, cap only on ultra-wide screens */
   .chat-panel {
     align-items: center;
   }
   .chat-statusbar {
     width: 100%;
-    max-width: 760px;
+    max-width: 1800px;
   }
   .chat-messages {
     width: 100%;
-    max-width: 760px;
+    max-width: 1800px;
     padding: 28px 32px;
   }
   .chat-input-area {
     width: 100%;
-    max-width: 760px;
+    max-width: 1800px;
     padding: 16px 32px;
   }
   .chat-bubble-wrap {
     max-width: min(65%, 480px);
   }
 
-  /* Files: two-column grid for file cards */
+  /* Files: fluid grid that fills the available width */
   .files-panel {
     padding: 28px 40px;
-    max-width: 1200px;
+    max-width: 1800px;
     width: 100%;
     align-self: center;
   }
@@ -1003,12 +1093,6 @@ main {
     display: none;
   }
 
-  .files-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
   .files-empty {
     padding: 60px 0;
   }
@@ -1026,12 +1110,27 @@ main {
   .file-meta {
     font-size: 12px;
   }
-}
 
-/* Large desktop (1280px+): three-column files */
-@media (min-width: 1280px) {
-  .files-list {
-    grid-template-columns: repeat(3, 1fr);
+  /* Bigger tiles once there's real desktop space */
+  .files-list.view-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+  }
+  .files-list.view-grid .file-item {
+    padding: 26px 16px;
+    gap: 14px;
+  }
+  .files-list.view-grid .file-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+  }
+  .files-list.view-grid .file-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+  .files-list.view-grid .file-name {
+    font-size: 13px;
   }
 }
 
